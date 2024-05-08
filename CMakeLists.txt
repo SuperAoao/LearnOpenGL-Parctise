@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.0)
+﻿cmake_minimum_required (VERSION 3.0)
 cmake_policy(VERSION 3.0)
 
 project(LearnOpenGL)
@@ -188,6 +188,13 @@ set(GUEST_ARTICLES
 	8.guest/2022/7.area_lights/2.multiple_area_lights
 )
 
+set(DEMOS
+    demos/1.point_size
+    demos/2.gl_FragCoord
+    demos/3.gl_FrontFacing
+    demos/4.gaussian_blur
+)
+
 configure_file(configuration/root_directory.h.in configuration/root_directory.h)
 include_directories(${CMAKE_BINARY_DIR}/configuration)
 
@@ -276,5 +283,9 @@ endforeach(CHAPTER)
 foreach(GUEST_ARTICLE ${GUEST_ARTICLES})
 	create_project_from_sources(${GUEST_ARTICLE} "")
 endforeach(GUEST_ARTICLE)
+foreach(DEMO ${DEMOS})
+	create_project_from_sources(${DEMO} "")
+endforeach(DEMOS)
+
 
 include_directories(${CMAKE_SOURCE_DIR}/includes)
