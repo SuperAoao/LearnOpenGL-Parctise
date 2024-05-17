@@ -1,13 +1,10 @@
 ﻿/*
-* This is a gaussain blur demo according to "High-Fidelity Star Simulator for Cameras and Star Trackers" 
-*   the 95% of the energy is contained within a square of n
-    pixel, in which the value of n is computed with this simple formula: n ≥ σ · 4.48 . From
-    these considerations, it is selected a parameter n equal to 12 pixels capable of satisfying
-    a variety of simulation conditions
+* This is a star simulator demo according to "High-Fidelity Star Simulator for Cameras and Star Trackers" 
 */
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
+#include <stb_image_write.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -20,6 +17,7 @@
 
 #include <iomanip>
 #include <iostream>
+#include <random>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -104,27 +102,16 @@ double energyProportionInPixel(double x, double y)
     return sum;
 }
 
-//unsigned char* genTex(const uint32_t pointSize)
-//{
-//    if (pointSize <= 0)
-//    {
-//        return nullptr;
-//    }
-//    unsigned char* data = new unsigned char[pointSize * pointSize];
-//    for (uint32_t i = 0; i < pointSize; ++i)
-//    {
-//        for (uint32_t j = 0; j < pointSize; ++j)
-//        {
-//            // convert to relative pixel coord
-//            float center_pixel_x = (float)pointSize / 2;   
-//            float pixle_x = (float)i - center_pixel_x;
-//            float pixel_y = (float)j - center_pixel_x;
-//            double energyProportion = energyProportionInPixel(pixle_x, pixel_y);
-//            data[i * pointSize + j] = energyProportion * 256.0f;
-//        }
-//    }
-//    return data;
-//}
+// post process for noise 
+float frameVertics[] = {
+    // pos                // texCoords
+    -1.0f, -1.0f, 0.0f,     0.0f, 0.0f,
+    1.0f, -1.0f, 0.0f,      1.0f, 0.0f,
+    -1.0f, 1.0f, 0.0f,      0.0f, 1.0f,
+    -1.0f, 1.0f, 0.0f,      0.0f, 1.0f,
+    1.0f, -1.0f, 0.0f,      1.0f, 0.0f,
+    1.0f, 1.0f, 0.0f,       1.0f, 1.0f
+};
 
 std::vector<float> genEnergyProportion(uint32_t pixelSize, double n_pe, double n_e)
 {
@@ -181,7 +168,7 @@ int main()
 
     // glfw window creation
     // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "star", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -211,8 +198,8 @@ int main()
 
     // build and compile shaders
     // -------------------------
-    Shader shader("4.gaussian_blur.vs", "4.gaussian_blur.fs");
-
+    Shader shaderStar("5.star.vs", "5.star.fs");
+    Shader shaderNoise("5.noise.vs", "5.noise.fs");
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
     float pointVertices[] = {
@@ -224,9 +211,9 @@ int main()
     double n_ec = 45000;    // CCD per pixel max photons
     double n_e = n_ec / 256;    // photons per gray scale
     double d_len = 0.07; // unit m
-    double exposureTime = 5;    // unit s
+    double t_exposure = 5;    // unit s
     double m_v = 12;    //  star magnitude
-    double n_pe = getPhotonsFromMagnitude(m_v, d_len, exposureTime);
+    double n_pe = getPhotonsFromMagnitude(m_v, d_len, t_exposure);
     double test = 1 / (2 * glm::pi<double>() * g_sigma_squared) * simplifiedGaussianFunc(0, 0, 0, 0) * n_pe;
     // test gaussian
 
@@ -241,8 +228,39 @@ int main()
 
     std::vector<float> vecEnergyProportion = genEnergyProportion(pointSize, n_pe, n_e);
 
+    // noise
+    double n_pe_background = getPhotonsFromMagnitude(10, d_len, t_exposure); // 背景电子数 
+    double n_background = n_pe_background * 0.13;   //平均背景电子数
+    //double S_AvgShot = n_pe / (SCR_WIDTH * SCR_HEIGHT) + n_background; 
+    double S_AvgShot = n_pe + n_pe_background;
+    double sigma_PRNU = 0.03;
+    double I_dark = 203;
+    double I_DSNU = 60;
+    double N_well = 70000;
+    double q = 12;
+    double I_R = 2;
+    double n_shot = sqrt(S_AvgShot); // 散粒噪声
+    double n_shot_background = sqrt(n_pe_background);
+    double n_PRNU = sqrt(S_AvgShot * sigma_PRNU); // 光响应非均匀噪声
+    double n_DS = sqrt(I_dark * t_exposure); // 暗电流噪声
+    double n_DSNU = sqrt(I_DSNU * t_exposure); // 暗电流不均匀噪声
+    double n_ADC = N_well / pow(2,q) / sqrt(12); // 模拟数字转化噪声
+    double n_R = I_R; // 读出噪声
+    double n_TOT = sqrt(pow(n_shot_background,2) + pow(n_PRNU,2) + pow(n_DS,2) + pow(n_DSNU, 2) + pow(n_ADC, 2) + pow(n_R, 2)); // 噪声标准差
+
+    std::random_device rd{};
+    std::mt19937 gen{ rd() };
+
+    // values near the mean are the most likely
+    // standard deviation affects the dispersion of generated values from the mean
+    std::normal_distribution d{ n_pe, n_shot };
+    float shot_n_pe = std::round(d(gen));
+    std::normal_distribution noise{ 0.0, n_TOT };
+    // gen noise texture
+
+    float n_perPixel = std::round(noise(gen));
     //---------------------------------------
-    // point VAO
+    // star point VAO
     unsigned int pointVAO, pointVBO;
     glGenVertexArrays(1, &pointVAO);
     glGenBuffers(1, &pointVBO);
@@ -254,12 +272,27 @@ int main()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(3 * sizeof(float)));
+
+    glBindVertexArray(0);
     
+    // noise VAO
+    unsigned int noiseVAO, noiseVBO;
+    glGenVertexArrays(1, &noiseVAO);
+    glGenBuffers(1, &noiseVBO);
+    glBindVertexArray(noiseVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, noiseVBO);
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(frameVertics), &frameVertics, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3*sizeof(float)));
+    glBindVertexArray(0);
 
     // configure a unifom buffer object to store energy proportion of each pixel
     // ------------------------------
-    unsigned int uniformBlockIndex = glGetUniformBlockIndex(shader.ID, "energyProportion");
-    glUniformBlockBinding(shader.ID, uniformBlockIndex, 0);
+    unsigned int uniformBlockIndex = glGetUniformBlockIndex(shaderStar.ID, "energyProportion");
+    glUniformBlockBinding(shaderStar.ID, uniformBlockIndex, 0);
     unsigned int uboEnergyProportion;
     glGenBuffers(1, &uboEnergyProportion);
     glBindBuffer(GL_UNIFORM_BUFFER, uboEnergyProportion);
@@ -268,10 +301,22 @@ int main()
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     glBindVertexArray(0);
-    // shader configuration
-    // --------------------
-    shader.use();
 
+    // generate fbo for first render pass of star image
+    unsigned int fboStar;
+    glGenFramebuffers(1, &fboStar);
+    glBindFramebuffer(GL_FRAMEBUFFER, fboStar);
+
+    unsigned int texColorBuffer;
+    glGenTextures(1, &texColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0);
+
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // enable gl_PointSize
     glEnable(GL_PROGRAM_POINT_SIZE);
@@ -291,25 +336,27 @@ int main()
 
         // render
         // ------
+        glBindFramebuffer(GL_FRAMEBUFFER, fboStar);
+        shaderStar.use();
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        shader.use();
+        shaderStar.use();
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 view = camera.GetViewMatrix();
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
  
-        shader.setMat4("view", view);
-        shader.setMat4("projection", projection);
-        shader.setFloat("window_width_half", (float)SCR_WIDTH / 2);
-        shader.setFloat("window_height_half", (float)SCR_HEIGHT / 2);
-        shader.setFloat("n_e", (float)n_e);
-        shader.setInt("pointSize", pointSize);
+        shaderStar.setMat4("view", view);
+        shaderStar.setMat4("projection", projection);
+        shaderStar.setFloat("window_width_half", (float)SCR_WIDTH / 2);
+        shaderStar.setFloat("window_height_half", (float)SCR_HEIGHT / 2);
+        shaderStar.setFloat("n_e", (float)n_e);
+        shaderStar.setInt("pointSize", pointSize);
 
         glBindVertexArray(pointVAO);
 
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-        shader.setMat4("model", model);
+        shaderStar.setMat4("model", model);
         glDrawArrays(GL_POINTS, 0, 1);
 
         glBindVertexArray(0);
@@ -325,6 +372,14 @@ int main()
         std::cout << "  gl_Pos: " << gl_Pos.x << ", " << gl_Pos.y << ", " << gl_Pos.z <<  ", " << gl_Pos.w << std::endl;
         std::cout << "  window_Pos: " << gl_window_x << ", " << gl_window_y << std::endl;
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindVertexArray(noiseVAO);
+        shaderNoise.use();
+        glUniform1i(glGetUniformLocation(shaderNoise.ID, "screenTexture"), 0);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
