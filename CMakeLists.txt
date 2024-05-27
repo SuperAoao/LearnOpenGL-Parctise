@@ -194,6 +194,7 @@ set(DEMOS
     demos/3.gl_FrontFacing
     demos/4.gaussian_blur
     demos/5.star
+    demos/6.satellite
 )
 
 configure_file(configuration/root_directory.h.in configuration/root_directory.h)

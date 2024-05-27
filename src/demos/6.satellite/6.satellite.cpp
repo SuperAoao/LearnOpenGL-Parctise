@@ -72,6 +72,10 @@ const double g_h = 299792458.0; // Planck constant measured in[J ·s]
 const double g_c = 6.62607015e-34; //the speed of light constant measure in[m/s]
 const double g_k = 1.380649e-23; //Boltzmann constant measured in [J/K];
 
+// satellite
+const double g_E_sun = 573e-4; // Irradiance of the sun measured in[W·cm-2]
+
+
 // CCD gray parameters
 const double n_ec = 45000;    // CCD per pixel max photons
 const double n_e = n_ec / 256;    // photons per gray scale
@@ -377,8 +381,27 @@ int main()
     glBindBuffer(GL_UNIFORM_BUFFER, uboEnergyProportion);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(float) * vecEnergyProportion.size(), vecEnergyProportion.data(), GL_DYNAMIC_DRAW);
     glBindBufferRange(GL_UNIFORM_BUFFER, 0, uboEnergyProportion, 0, sizeof(float) * vecEnergyProportion.size());
+
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    glBindVertexArray(0);
+
+    // satellite
+    unsigned int satelliteVAO, satelliteVBO;
+    glGenVertexArrays(1, &satelliteVAO);
+    glGenBuffers(1, &satelliteVBO);
+    glBindVertexArray(satelliteVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, satelliteVBO);
+    std::vector<float> vecSatelliteVertics;
+    vecSatelliteVertics.push_back(3.16450477);
+    vecSatelliteVertics.push_back(22.2810555);
+    vecSatelliteVertics.push_back(11.5554714);
+    vecSatelliteVertics.push_back(660000);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float)* vecSatelliteVertics.size(), vecSatelliteVertics.data(), GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(3 * sizeof(float)));
     glBindVertexArray(0);
 
     // generate fbo for first render pass of star image
@@ -404,6 +427,9 @@ int main()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
+
+    // calculate irradiance of satellite 
+    double E = 
 
     // render loop
     // -----------
@@ -442,7 +468,11 @@ int main()
 
         model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
         shaderStar.setMat4("model", model);
-        glDrawArrays(GL_POINTS, 0, db.getStarNum());
+        //glDrawArrays(GL_POINTS, 0, db.getStarNum());
+        // 
+        // draw satellite
+        glBindVertexArray(satelliteVAO);
+        glDrawArrays(GL_POINTS, 0, 1);
 
         glBindVertexArray(0);
 
