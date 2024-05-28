@@ -73,8 +73,8 @@ const double g_c = 6.62607015e-34; //the speed of light constant measure in[m/s]
 const double g_k = 1.380649e-23; //Boltzmann constant measured in [J/K];
 
 // satellite
-const double g_E_sun = 573e-4; // Irradiance of the sun measured in[W·cm-2]
-
+const double g_E_sun = 573; // Irradiance of the sun measured in[W/m^2]
+const double g_sun_app_mag = -26.7; // sun apparent magnitude
 
 // CCD gray parameters
 const double n_ec = 45000;    // CCD per pixel max photons
@@ -254,6 +254,25 @@ double computeGAGS(const double d_len, const double t_exposure, double gain, dou
     return g;
 }
 
+/**
+ * @brief 
+ * @param r -> the distance between the target and the sensor [m]
+ * @param rho -> effective reflectance 
+ * @param area -> effective reflective area [m^2]
+ * @return 
+ */
+double computeIrradianceOfSatellite(const double r,const double rho, const double area)
+{
+    double E = g_E_sun / (std::_Pi_val * r * r) * rho * area;
+    return E;
+}
+
+double irradianceToApparentMagnitude(const double e)
+{
+    double m = 2.5 * std::log10(g_E_sun / e) + g_sun_app_mag;
+    return m;
+}
+
 int main()
 {
     // glfw: initialize and configure
@@ -318,7 +337,7 @@ int main()
     // test gaussian
 
     uint32_t pointSize = getPointSizeFromSigma(g_sigma);
-    pointSize = 5;
+    pointSize = 12;
     //pointSize = 12; // from the visual data from the second output is 5
     //test 
     std::vector<float> vecVertics;
@@ -387,6 +406,12 @@ int main()
     glBindVertexArray(0);
 
     // satellite
+    // compute the satellite effective reflective area
+    double refArea = 1.0 * 1.0 + 5.0 * 1.0 * 2.0; // 1 plane + 2 wings 
+    // calculate irradiance of satellite 
+    double E = computeIrradianceOfSatellite(648610.0, 0.25, 0.290);
+    double target_mag = irradianceToApparentMagnitude(E);
+
     unsigned int satelliteVAO, satelliteVBO;
     glGenVertexArrays(1, &satelliteVAO);
     glGenBuffers(1, &satelliteVBO);
@@ -396,7 +421,7 @@ int main()
     vecSatelliteVertics.push_back(3.16450477);
     vecSatelliteVertics.push_back(22.2810555);
     vecSatelliteVertics.push_back(11.5554714);
-    vecSatelliteVertics.push_back(660000);
+    vecSatelliteVertics.push_back(getPhotonsFromMagnitude(target_mag,d_len, t_exposure));
     glBufferData(GL_ARRAY_BUFFER, sizeof(float)* vecSatelliteVertics.size(), vecSatelliteVertics.data(), GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
@@ -428,8 +453,7 @@ int main()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
 
-    // calculate irradiance of satellite 
-    double E = 
+   
 
     // render loop
     // -----------
