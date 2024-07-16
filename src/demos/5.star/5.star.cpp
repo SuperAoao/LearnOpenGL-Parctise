@@ -314,7 +314,7 @@ int main()
     // test gaussian
 
     uint32_t pointSize = getPointSizeFromSigma(g_sigma);
-    pointSize = 5;
+    pointSize = 12;
     //pointSize = 12; // from the visual data from the second output is 5
     //test 
     std::vector<float> vecVertics;

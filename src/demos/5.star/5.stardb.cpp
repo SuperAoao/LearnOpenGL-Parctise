@@ -147,8 +147,8 @@ std::vector<float> StarDataBase::getVerticsArray(const double d_len, const doubl
 			 //continue;
 		 }
 		
-		 //double n = Celesitial::getPhotonsFromApparentMagnitude(apparentMag, d_len, t_in);
-		 double n = Celesitial::getPhotonsFromApparentMagnitude(12, d_len, t_in);
+		 double n = Celesitial::getPhotonsFromApparentMagnitude(apparentMag, d_len, t_in);
+		 //double n = Celesitial::getPhotonsFromApparentMagnitude(12, d_len, t_in);
 		 array.push_back(star.x);
 		 array.push_back(star.y);
 		 array.push_back(star.z);

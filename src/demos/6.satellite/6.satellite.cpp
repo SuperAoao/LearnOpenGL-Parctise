@@ -409,7 +409,8 @@ int main()
     // compute the satellite effective reflective area
     double refArea = 1.0 * 1.0 + 5.0 * 1.0 * 2.0; // 1 plane + 2 wings 
     // calculate irradiance of satellite 
-    double E = computeIrradianceOfSatellite(648610.0, 0.25, 0.290);
+    //double E = computeIrradianceOfSatellite(648610.0, 0.25, 0.290);
+    double E = computeIrradianceOfSatellite(20440.0, 0.25, 0.800);
     double target_mag = irradianceToApparentMagnitude(E);
 
     unsigned int satelliteVAO, satelliteVBO;
