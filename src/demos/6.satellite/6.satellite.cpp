@@ -91,6 +91,10 @@ const uint32_t g_steps = 100;
 
 // exposure time 1s, d_length 1 mm^2
 const double g_CCDphotons = 19100;
+
+// in [m]
+double g_viewDistance_r = 20440.0;
+
 // get photons from star magitude on CCD
 double getPhotonsFromMagnitude(double mv, double d_len, double t_in)
 {
@@ -410,7 +414,7 @@ int main()
     double refArea = 1.0 * 1.0 + 5.0 * 1.0 * 2.0; // 1 plane + 2 wings 
     // calculate irradiance of satellite 
     //double E = computeIrradianceOfSatellite(648610.0, 0.25, 0.290);
-    double E = computeIrradianceOfSatellite(20440.0, 0.25, 0.800);
+    double E = computeIrradianceOfSatellite(g_viewDistance_r, 0.25, 0.800);
     double target_mag = irradianceToApparentMagnitude(E);
 
     unsigned int satelliteVAO, satelliteVBO;
@@ -497,6 +501,19 @@ int main()
         // 
         // draw satellite
         glBindVertexArray(satelliteVAO);
+        // update
+        double E = computeIrradianceOfSatellite(g_viewDistance_r, 0.25, 0.800);
+        double target_mag = irradianceToApparentMagnitude(E);
+
+        glBindBuffer(GL_ARRAY_BUFFER, satelliteVBO);
+ 
+        std::vector<float> vecSatelliteVertics;
+        vecSatelliteVertics.push_back(3.16450477);
+        vecSatelliteVertics.push_back(22.2810555);
+        vecSatelliteVertics.push_back(11.5554714);
+        vecSatelliteVertics.push_back(getPhotonsFromMagnitude(target_mag, d_len, t_exposure));
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * vecSatelliteVertics.size(),vecSatelliteVertics.data());
+
         glDrawArrays(GL_POINTS, 0, 1);
 
         glBindVertexArray(0);
@@ -595,6 +612,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
     camera.ProcessMouseScroll(static_cast<float>(yoffset));
+    g_viewDistance_r += yoffset * (-10000.0f);
 }
 
 // utility function for loading a 2D texture from file
@@ -610,7 +628,7 @@ unsigned int loadTexture(char const *path)
     {
         GLenum format;
         if (nrComponents == 1)
-            format = GL_RED;
+            format = GL_RED; 
         else if (nrComponents == 3)
             format = GL_RGB;
         else if (nrComponents == 4)

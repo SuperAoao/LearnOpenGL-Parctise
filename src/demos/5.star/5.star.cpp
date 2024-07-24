@@ -445,7 +445,8 @@ int main()
         glDrawArrays(GL_POINTS, 0, db.getStarNum());
 
         glBindVertexArray(0);
-
+        // real time regen noise is very time consuming!
+        //createNoiseTex(d_len, t_exposure);
         // debug 
         glm::vec4 pos(pointVertices[0], pointVertices[1], pointVertices[2], 1.0);
        
